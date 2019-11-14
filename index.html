@@ -1,8 +1,97 @@
 <html>
 <head>
-    <meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <style>
+    h3, h4 {
+      margin: 0;
+      padding: 0;
+    }
+  </style>
 </head>
 <body>
-<h1>huh?</h1>
+<h1>Preview Dummy PRs</h1>
+<label>
+  <span>Host:</span>
+  <input type="text" name="host" value="http://wiki.localhost.org:8000" style="min-width: 180px">
+</label>
+<h2>Pull Requests</h2>
+<ul class="pr-list">
+</ul>
+
+<script>
+  (async () => {
+    const PULLS_URL = 'https://api.github.com/repos/Gregoor/dummy-content/pulls';
+    const hostInput = document.querySelector('input[name="host"]');
+    const list = document.querySelector('.pr-list');
+
+    function post(params) {
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = hostInput.value + '/en-US/docs/preview-wiki-content';
+      form.target = '_blank';
+
+      for (const [key, value] of Object.entries(params)) {
+        const hiddenField = document.createElement('input');
+        hiddenField.type = 'hidden';
+        hiddenField.name = key;
+        hiddenField.value = value;
+
+        form.appendChild(hiddenField);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    const pulls = (await fetch(PULLS_URL).then(r => r.json()));
+    const pullsWithFiles = await Promise.all(pulls.map(async pull => ({
+      ...pull,
+      files: await fetch(`${PULLS_URL}/${pull.number}/files`).then(r => r.json())
+    })));
+
+    for (const {files, html_url, title, user} of pullsWithFiles) {
+      const li = document.createElement('li');
+
+      const h3 = document.createElement('h3');
+      li.appendChild(h3);
+      const pullLink = document.createElement('a');
+      h3.appendChild(pullLink);
+      pullLink.href = html_url;
+      pullLink.textContent = title;
+
+      const h4 = document.createElement('h4');
+      li.appendChild(h4);
+      h4.textContent = 'by ';
+      const userLink = document.createElement('a');
+      h4.appendChild(userLink);
+      userLink.href = user.html_url;
+      userLink.textContent = user.login;
+
+      const filesList = document.createElement('ul');
+      li.appendChild(filesList);
+      for (const {filename, blob_url} of files) {
+        const fileLi = document.createElement('li');
+        filesList.appendChild(fileLi);
+
+        const fileLink = document.createElement('a');
+        fileLi.appendChild(fileLink);
+        fileLink.href = blob_url;
+        fileLink.textContent = filename;
+
+        const button = document.createElement('button');
+        fileLi.appendChild(button);
+        button.style.marginLeft = 10;
+        button.textContent = 'Preview';
+        button.addEventListener('click', async () => {
+          const raw_url = 'https://rawcdn.githack.com' + blob_url.split('github.com')[1].replace('/blob', '');
+          const fileText = await fetch(raw_url).then(r => r.text());
+          post({title, content: fileText});
+        })
+      }
+
+      list.appendChild(li);
+    }
+  })()
+</script>
 </body>
 </html>
